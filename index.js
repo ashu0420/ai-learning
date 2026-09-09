@@ -7,12 +7,12 @@ const ai = new GoogleGenAI({
 });
 
 async function main() {
-    const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: "Explain binary search in simple words."
+    const response = await ai.models.embedContent({
+        model: "gemini-embedding-2",
+        contents: "Employees receive 20 days of paid leave every year."
     });
 
-    console.log(response.text);
+    console.log(response.embeddings);
 }
 
 main();
