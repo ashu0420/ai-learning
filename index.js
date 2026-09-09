@@ -12,7 +12,7 @@ async function main() {
         contents: "Employees receive 20 days of paid leave every year."
     });
 
-    console.log(response.embeddings);
+    console.log(response.embeddings[0].values.length);
 }
 
 main();
