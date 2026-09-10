@@ -1,27 +1,16 @@
 require("dotenv").config();
 
-const fs = require("fs");
+
+const { Client } = require("pg");
+
+
 const { GoogleGenAI } = require("@google/genai");
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY
 });
 
-function cosineSimilarity(a, b) {
-    let dotProduct = 0;
-    let magnitudeA = 0;
-    let magnitudeB = 0;
 
-    for (let i = 0; i < a.length; i++) {
-        dotProduct += a[i] * b[i];
-        magnitudeA += a[i] * a[i];
-        magnitudeB += b[i] * b[i];
-    }
-
-    return dotProduct / (
-        Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB)
-    );
-}
 
 async function getEmbedding(text) {
     const response = await ai.models.embedContent({
@@ -33,31 +22,37 @@ async function getEmbedding(text) {
 }
 
 async function main() {
-    const documents = JSON.parse(
-        fs.readFileSync("documents.json", "utf8")
-    );
+  
 
     const question = "What projects has Asheesh built?";
 
     const questionEmbedding = await getEmbedding(question);
 
-    const results = [];
+    const client = new Client({
+        user: process.env.PGUSER,
+        password: process.env.PGPASSWORD,
+        database: process.env.PGDATABASE,
+        host: process.env.PGHOST,
+        port: process.env.PGPORT
+    });
 
-    for (const document of documents) {
-        const score = cosineSimilarity(
-            questionEmbedding,
-            document.embedding
-        );
+    await client.connect();
 
-        results.push({
-            text: document.text,
-            score: score
-        });
-    }
+    const result = await client.query(
+        `
+        SELECT text, section,
+               embedding <=> $1 AS distance
+        FROM documents
+        WHERE section = 'Projects'
+        ORDER BY embedding <=> $1
+        LIMIT 3
+        `,
+        [JSON.stringify(questionEmbedding)]
+    );
 
-    results.sort((a, b) => b.score - a.score);
+    const topK = result.rows;
 
-    const topK = results.slice(0, 3);
+    await client.end();
     const context = topK
         .map(result => result.text)
         .join("\n\n");
@@ -70,9 +65,15 @@ async function main() {
         Question:
         ${question}
         `;
+    const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt
+    });
 
-    console.log("\nPrompt:\n");
-    console.log(prompt);
+    console.log("\nAnswer:");
+    console.log(response.text);
+
+    
 
     console.log("\nContext:\n");
     console.log(context);
@@ -80,9 +81,7 @@ async function main() {
     console.log("\nTop 3 results:\n");
 
     for (const result of topK) {
-        console.log("Score:", result.score);
-        console.log(result.text);
-        console.log("--------------------------------");
+        console.log("Distance:", result.distance);
     }
 }
 

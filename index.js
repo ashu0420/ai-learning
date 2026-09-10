@@ -37,11 +37,24 @@ async function main() {
     const documents = [];
 
     for (const chunk of chunks) {
-        const embedding = await getEmbedding(chunk);
+        const section = getSection(chunk);
+
+        let textForEmbedding = chunk;
+
+        if (section === "Projects") {
+            textForEmbedding = `Resume of Asheesh Chauhan
+    
+    ${chunk}`;
+        }
+
+        const embedding = await getEmbedding(textForEmbedding);
 
         documents.push({
-            text: chunk,
-            embedding: embedding
+            text: textForEmbedding,
+            embedding: embedding,
+            metadata: {
+                section: section
+            }
         });
 
         console.log("Embedded one chunk");
@@ -57,5 +70,43 @@ async function main() {
 
     await parser.destroy();
 }
+function getSection(chunk) {
+    if (chunk.startsWith("Summary")) {
+        return "Summary";
+    }
 
+    if (chunk.startsWith("Technical Skills")) {
+        return "Technical Skills";
+    }
+
+    if (chunk.startsWith("ZCoder")) {
+        return "Projects";
+    }
+
+    if (chunk.startsWith("FreeMovers")) {
+        return "Projects";
+    }
+
+    if (chunk.startsWith("IITG Voting System")) {
+        return "Projects";
+    }
+
+    if (chunk.startsWith("Additional Technical Projects")) {
+        return "Projects";
+    }
+
+    if (chunk.startsWith("Education")) {
+        return "Education";
+    }
+
+    if (chunk.startsWith("Achievements")) {
+        return "Achievements";
+    }
+
+    if (chunk.startsWith("Extra-Curricular")) {
+        return "Extra-Curricular";
+    }
+
+    return "Header";
+}
 main();
