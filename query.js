@@ -2,6 +2,7 @@ require("dotenv").config();
 
 
 const { Client } = require("pg");
+const readline = require("readline");
 
 
 const { GoogleGenAI } = require("@google/genai");
@@ -22,9 +23,18 @@ async function getEmbedding(text) {
 }
 
 async function main() {
-  
 
-    const question = "What projects has Asheesh built?";
+
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    const question = await new Promise(resolve => {
+        rl.question("Ask a question: ", resolve);
+    });
+
+    rl.close();
 
     const questionEmbedding = await getEmbedding(question);
 
@@ -41,9 +51,9 @@ async function main() {
     const result = await client.query(
         `
         SELECT text, section,
-               embedding <=> $1 AS distance
+       embedding <=> $1 AS distance
         FROM documents
-        WHERE section = 'Projects'
+        WHERE embedding <=> $1 < 0.32
         ORDER BY embedding <=> $1
         LIMIT 3
         `,
@@ -73,7 +83,7 @@ async function main() {
     console.log("\nAnswer:");
     console.log(response.text);
 
-    
+
 
     console.log("\nContext:\n");
     console.log(context);
