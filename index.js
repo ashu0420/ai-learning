@@ -44,7 +44,6 @@ async function main() {
         section => section.trim() !== "Projects"
     );
 
-    const documents = [];
     await client.connect();
 
     console.log("Connected to PostgreSQL");
@@ -53,10 +52,10 @@ async function main() {
         const chunkId = getChunkId(chunk);
         console.log("Chunk:", chunkId);
 
-        let textForEmbedding =
+        const textForEmbedding =
             "Resume of Asheesh Chauhan\n" +
             "Section: " + section + "\n\n" +
-        chunk;
+            chunk;
 
         const hash = crypto
             .createHash("sha256")
@@ -103,21 +102,11 @@ async function main() {
             ]
         );
 
-        documents.push({
-            text: textForEmbedding,
-            embedding: embedding,
-            metadata: {
-                section: section
-            }
-        });
-
+        
         console.log(`Embedded one chunk: ${chunkId}`);
     }
 
-    fs.writeFileSync(
-        "documents.json",
-        JSON.stringify(documents)
-    );
+   
 
     await client.end();
     await parser.destroy();
