@@ -101,4 +101,28 @@ async function main() {
     }
 }
 
+async function rewriteQuery(question, conversationHistory) {
+    const prompt = `
+You are a query rewriting assistant for a resume RAG system.
+
+Rewrite the user's latest question into a self-contained search query.
+Use the conversation history to resolve references such as "it", "that", "which one", etc.
+
+Do not answer the question.
+Return only the rewritten search query.
+
+Conversation history:
+${conversationHistory}
+
+Latest question:
+${question}
+`;
+
+    const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt
+    });
+
+    return response.text.trim();
+}
 main();
