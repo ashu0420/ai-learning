@@ -61,6 +61,12 @@ async function main() {
     );
 
     const topK = result.rows;
+    if (topK.length === 0) {
+        console.log("\nAnswer:");
+        console.log("I couldn't find this information in the provided resume.");
+        await client.end();
+        return;
+    }
 
     await client.end();
     const context = topK
