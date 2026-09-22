@@ -53,11 +53,11 @@ async function main() {
         const chunkId = getChunkId(chunk);
         console.log("Chunk:", chunkId);
 
-        let textForEmbedding = chunk;
-
-        if (section === "Projects") {
-            textForEmbedding = "Resume of Asheesh Chauhan\n\n" + chunk;
-        }
+        let textForEmbedding =
+            `Resume of Asheesh Chauhan
+            Section: ${section}
+    
+    ${chunk}`;
 
         const hash = crypto
             .createHash("sha256")
