@@ -42,20 +42,20 @@ const testCases = [
 async function main() {
     await client.connect();
 
-    let successes = 0;
+    let passed = 0;
 
     for (const testCase of testCases) {
         const questionEmbedding = await getEmbedding(testCase.question);
 
         const result = await client.query(
             `
-            SELECT section,
-                   embedding <=> $1 AS distance
-            FROM documents
-            WHERE embedding <=> $1 < 0.32
-            ORDER BY embedding <=> $1
-            LIMIT 3
-            `,
+        SELECT section,
+               embedding <=> $1 AS distance
+        FROM documents
+        WHERE embedding <=> $1 < 0.32
+        ORDER BY embedding <=> $1
+        LIMIT 3
+        `,
             [JSON.stringify(questionEmbedding)]
         );
 
@@ -65,16 +65,24 @@ async function main() {
 
         console.log("\nQuestion:", testCase.question);
         console.log("Expected:", testCase.expectedSection);
-        console.log("Retrieved:", result.rows);
+
+        console.log(
+            "Retrieved:",
+            result.rows.map(row => ({
+                section: row.section,
+                distance: Number(row.distance).toFixed(4)
+            }))
+        );
+
         console.log("Result:", success ? "PASS" : "FAIL");
 
         if (success) {
-            successes++;
+            passed++;
         }
     }
 
     console.log(
-        `\nRecall@3: ${successes}/${testCases.length}`
+        `\nRecall@3: ${passed}/${testCases.length}`
     );
 
     await client.end();
