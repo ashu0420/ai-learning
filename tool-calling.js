@@ -152,6 +152,37 @@ async function executeTool(functionCall) {
     return await tool(functionCall.args[argumentName]);
 }
 
+async function generateWithRetry(contents) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            return await ai.models.generateContent({
+                model: "gemini-3.1-flash-lite",
+                contents: contents,
+                config: {
+                    tools: toolDefinitions
+                }
+            });
+        } catch (error) {
+            if (error.status === 503) {
+                console.log(
+                    `Gemini temporarily unavailable (attempt ${attempt}/3)`
+                );
+
+                if (attempt === 3) {
+                    throw error;
+                }
+
+                await new Promise(resolve =>
+                    setTimeout(resolve, 2000)
+                );
+
+                continue;
+            }
+
+            throw error;
+        }
+    }
+}
 async function main() {
 
     const contents = [
@@ -170,13 +201,7 @@ async function main() {
     for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         console.log(`\nIteration ${iteration}`);
 
-        const response = await ai.models.generateContent({
-            model: "gemini-3.1-flash-lite",
-            contents: contents,
-            config: {
-                tools: toolDefinitions
-            }
-        });
+        const response = await generateWithRetry(contents);
 
         contents.push(response.candidates[0].content);
 
