@@ -1,6 +1,8 @@
 require("dotenv").config();
 
 const { GoogleGenAI } = require("@google/genai");
+const { searchResume } = require("./rag");
+
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY
@@ -35,6 +37,20 @@ const toolDefinitions = [{
                 },
                 required: ["technology"]
             }
+        },
+        {
+            name: "searchResume",
+            description: "Search Asheesh's resume for relevant information.",
+            parameters: {
+                type: "OBJECT",
+                properties: {
+                    query: {
+                        type: "STRING",
+                        description: "The question or search query to search for in the resume."
+                    }
+                },
+                required: ["query"]
+            }
         }
     ]
 }];
@@ -66,7 +82,8 @@ const validTechnologies = [
 ];
 const allowedTools = [
     "getProjectDetails",
-    "searchProjects"
+    "searchProjects",
+    "searchResume"
 ];
 
 function searchProjects(technology) {
@@ -103,10 +120,11 @@ function searchProjects(technology) {
 // console.log(searchProjects("Next.js"));
 const tools = {
     getProjectDetails,
-    searchProjects
+    searchProjects,
+    searchResume
 };
 
-function executeTool(functionCall) {
+async function executeTool(functionCall) {
     const tool = tools[functionCall.name];
 
     if (!tool) {
@@ -118,7 +136,8 @@ function executeTool(functionCall) {
 
     const argumentMap = {
         getProjectDetails: "project",
-        searchProjects: "technology"
+        searchProjects: "technology",
+        searchResume: "query"
     };
 
     const argumentName = argumentMap[functionCall.name];
@@ -130,7 +149,7 @@ function executeTool(functionCall) {
         };
     }
 
-    return tool(functionCall.args[argumentName]);
+    return await tool(functionCall.args[argumentName]);
 }
 
 async function main() {
@@ -140,7 +159,7 @@ async function main() {
             role: "user",
             parts: [
                 {
-                    text: "Tell me about ZCoder."
+                    text: "What challenges did Asheesh face while building ZCoder?"
                 }
             ]
         }
@@ -193,7 +212,7 @@ async function main() {
             let result;
 
             try {
-                result = executeTool(functionCall);
+                 result = await executeTool(functionCall);
             } catch (error) {
                 result = {
                     success: false,
@@ -201,7 +220,7 @@ async function main() {
                 };
             }
 
-            // console.log("\nTool result:", result);
+            // console.log("DEBUG result:", result);
 
             const toolResponse = {
                 functionResponse: {
