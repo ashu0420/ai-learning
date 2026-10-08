@@ -18,6 +18,7 @@ async function getEmbedding(text) {
     return response.embeddings[0].values;
 }
 
+
 function needsQueryRewriting(question) {
     const contextualWords = [
         "it",
@@ -53,6 +54,22 @@ async function main() {
     });
 
     await client.connect();
+    async function searchResume(query) {
+        const queryEmbedding = await getEmbedding(query);
+
+        const result = await client.query(
+            `
+            SELECT text, section,
+                   embedding <=> $1 AS distance
+            FROM documents
+            ORDER BY embedding <=> $1
+            LIMIT 3
+            `,
+            [JSON.stringify(queryEmbedding)]
+        );
+
+        return result.rows;
+    }
 
     while (true) {
         const rl = readline.createInterface({
@@ -80,23 +97,7 @@ async function main() {
 
         console.log("\nRewritten query:", rewritten);
 
-        // Embed the rewritten query
-        const questionEmbedding = await getEmbedding(rewritten);
-
-        // Retrieve relevant documents
-        const result = await client.query(
-            `
-            SELECT text, section,
-                   embedding <=> $1 AS distance
-            FROM documents
-            WHERE embedding <=> $1 < 0.32
-            ORDER BY embedding <=> $1
-            LIMIT 3
-            `,
-            [JSON.stringify(questionEmbedding)]
-        );
-
-        const topK = result.rows;
+        const topK = await searchResume(rewritten);
 
         if (topK.length === 0) {
             console.log("\nAnswer:");
