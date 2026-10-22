@@ -44,7 +44,8 @@ async function searchResume(query) {
 
     return result.rows.map(row => ({
         section: row.section,
-        text: row.text
+        text: row.text,
+        distance: Number(row.distance)
     }));
 }
 
