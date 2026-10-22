@@ -68,7 +68,8 @@ function getProjectDetails(project) {
 
     return {
         success: false,
-        error: "Project not found"
+        error: "Project not found",
+        terminal: true
     };
 }
 
@@ -190,7 +191,7 @@ async function main() {
             role: "user",
             parts: [
                 {
-                    text: "What challenges did Asheesh face while building ZCoder?"
+                    text: "What projects has Asheesh built, and which ones use Next.js ?"
                 }
             ]
         }
@@ -246,6 +247,7 @@ async function main() {
             }
 
             // console.log("DEBUG result:", result);
+           
 
             const toolResponse = {
                 functionResponse: {
@@ -256,11 +258,29 @@ async function main() {
                     id: functionCall.id
                 }
             };
-
             toolResponses.push(toolResponse);
-
             console.log("\nTool result:", result);
 
+            if (result.terminal) {
+                finalAnswerFound = true;
+                break;
+            }
+
+            
+
+        }
+        if (finalAnswerFound) {
+            contents.push({
+                role: "user",
+                parts: [...toolResponses]
+            });
+
+            const finalResponse = await generateWithRetry(contents);
+
+            console.log("\nFinal answer:");
+            console.log(finalResponse.text);
+
+            break;
         }
         contents.push({
             role: "user",
@@ -299,6 +319,3 @@ async function main() {
 }
 
 main();
-
-
-
