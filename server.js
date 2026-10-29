@@ -6,7 +6,7 @@ const { answerResumeQuestion } = require("./rag-service");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "10kb" }));
 
 app.get("/health", (req, res) => {
     res.json({ status: "ok" });
@@ -51,13 +51,20 @@ app.use((err, req, res, next) => {
             error: "Invalid JSON in request body."
         });
     }
-    
+
+    if (err.status === 413 && err.type === "entity.too.large") {
+        return res.status(413).json({
+            error: "Request body is too large. Maximum allowed size is 10 KB."
+        });
+    }
+
     console.error("Request error:", err.message);
-    
+
     return res.status(err.status || 500).json({
         error: "An error occurred while processing the request."
     });
 });
+
 app.listen(PORT, () => {
     console.log(`Resume assistant API running on port ${PORT}`);
 });
