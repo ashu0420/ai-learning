@@ -1,0 +1,179 @@
+import ReactMarkdown from "react-markdown";
+import { useState, useEffect, useRef } from "react";
+import "./App.css";
+
+function App() {
+  const [question, setQuestion] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+
+    const trimmedQuestion = question.trim();
+
+    if (!trimmedQuestion || loading) return;
+
+    setMessages((previous) => [
+      ...previous,
+      { role: "user", content: trimmedQuestion },
+    ]);
+
+    setQuestion("");
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: trimmedQuestion }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Something went wrong.");
+      }
+
+      setMessages((previous) => [
+        ...previous,
+        {
+          role: "assistant",
+          content: data.answer,
+          sources: data.sources || [],
+        },
+      ]);
+    } catch (error) {
+      setMessages((previous) => [
+        ...previous,
+        {
+          role: "assistant",
+          content: `Error: ${error.message}`,
+          failedQuestion: trimmedQuestion,
+          sources: [],
+        },
+      ]);
+    }finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="app">
+      <header className="header">
+        <div className="logo">R</div>
+        <div>
+          <h1>Resume Assistant</h1>
+          <p>Ask questions about Asheesh's experience and projects</p>
+        </div>
+      </header>
+
+      <section className="chat">
+        {messages.length === 0 && (
+          <div className="welcome">
+            <h2>Explore my resume</h2>
+            <p>
+              Ask about my technical skills, projects, achievements, or
+              competitive programming experience.
+            </p>
+
+            <div className="suggestions">
+              {[
+                "What projects has Asheesh built?",
+                "What is Asheesh's Codeforces rating?",
+                "What technologies has Asheesh used?",
+              ].map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => setQuestion(suggestion)}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {messages.map((message, index) => (
+          <article
+            className={`message ${message.role}`}
+            key={`${message.role}-${index}`}
+          >
+            <div className="message-label">
+              {message.role === "user" ? "You" : "Resume Assistant"}
+            </div>
+
+            <div className="message-content">
+              {message.role === "assistant" ? (
+                <ReactMarkdown>{message.content}</ReactMarkdown>
+              ) : (
+                message.content
+              )}
+            </div>
+            {message.failedQuestion && (
+              <button
+                className="retry-button"
+                onClick={() => {
+                  setQuestion(message.failedQuestion);
+                }}
+              >
+                Retry question
+              </button>
+            )}
+            {message.sources?.length > 0 && (
+              <details className="sources">
+                <summary>
+                  Sources ({message.sources.length})
+                </summary>
+
+                {message.sources.map((source, sourceIndex) => (
+                  <div className="source" key={sourceIndex}>
+                    <strong>{source.section}</strong>
+                    <p>{source.text}</p>
+                  </div>
+                ))}
+              </details>
+            )}
+          </article>
+        ))}
+
+        {loading && (
+          <div className="loading">
+            <span className="spinner" />
+            Searching the resume and generating an answer...
+          </div>
+        )}
+        <div ref={chatEndRef} />
+      </section>
+
+      <form className="composer" onSubmit={handleSubmit}>
+        <input
+          type="text"
+          value={question}
+          onChange={(event) => setQuestion(event.target.value)}
+          placeholder="Ask a question about the resume..."
+          maxLength={1000}
+          disabled={loading}
+        />
+
+        <button type="submit" disabled={loading || !question.trim()}>
+          {loading ? "Thinking..." : "Send"}
+        </button>
+      </form>
+
+      <footer>
+        Answers are generated by AI and should be verified against the sources.
+      </footer>
+    </main>
+  );
+}
+
+export default App;

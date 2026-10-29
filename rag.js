@@ -27,28 +27,29 @@ async function searchResume(query) {
 
     await client.connect();
 
-    const queryEmbedding = await getEmbedding(query);
+    try {
+        const queryEmbedding = await getEmbedding(query);
 
-    const result = await client.query(
-        `
-        SELECT text, section,
-               embedding <=> $1 AS distance
-        FROM documents
-        ORDER BY embedding <=> $1
-        LIMIT 3
-        `,
-        [JSON.stringify(queryEmbedding)]
-    );
+        const result = await client.query(
+            `
+            SELECT text, section,
+                   embedding <=> $1 AS distance
+            FROM documents
+            ORDER BY embedding <=> $1
+            LIMIT 3
+            `,
+            [JSON.stringify(queryEmbedding)]
+        );
 
-    await client.end();
-
-    return result.rows.map(row => ({
-        section: row.section,
-        text: row.text,
-        distance: Number(row.distance)
-    }));
+        return result.rows.map(row => ({
+            section: row.section,
+            text: row.text,
+            distance: Number(row.distance)
+        }));
+    } finally {
+        await client.end();
+    }
 }
-
 module.exports = {
     searchResume
 };

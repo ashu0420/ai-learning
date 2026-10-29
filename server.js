@@ -8,18 +8,13 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-
-
-
-
-
 app.get("/health", (req, res) => {
     res.json({ status: "ok" });
 });
 
 app.post("/api/chat", async (req, res) => {
     try {
-        const { question } = req.body;
+        const { question } = req || {};
 
         if (typeof question  !== "string" || !question.trim()) {
             return res.status(400).json({
@@ -50,6 +45,19 @@ app.post("/api/chat", async (req, res) => {
     }
 });
 
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+        return res.status(400).json({
+            error: "Invalid JSON in request body."
+        });
+    }
+    
+    console.error("Request error:", err.message);
+    
+    return res.status(err.status || 500).json({
+        error: "An error occurred while processing the request."
+    });
+});
 app.listen(PORT, () => {
     console.log(`Resume assistant API running on port ${PORT}`);
 });
