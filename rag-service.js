@@ -2,6 +2,21 @@ const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const { searchResume } = require("./rag");
 
+function withTimeout(promise, timeoutMs) {
+    let timeoutId;
+
+    const timeout = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+            const error = new Error("AI operation timed out");
+            error.code = "AI_TIMEOUT";
+            reject(error);
+        }, timeoutMs);
+    });
+
+    return Promise.race([promise, timeout])
+        .finally(() => clearTimeout(timeoutId));
+}
+
 
 const model = new ChatGoogleGenerativeAI({
     model: "gemini-3.1-flash-lite",
@@ -54,10 +69,11 @@ async function getRelevantChunkIndexes(question, chunks) {
         )
         .join("\n\n");
 
-    const result = await relevanceChain.invoke({
-        question,
-        chunks: formattedChunks
-    });
+    const result = await withTimeout(
+        relevanceChain.invoke({
+            question,
+            chunks: formattedChunks
+        }), 30000);
 
     const judgment = String(result.content).trim().toUpperCase();
 
@@ -110,19 +126,22 @@ async function answerResumeQuestion(question) {
         .map(chunk => `Section: ${chunk.section}\n${chunk.text}`)
         .join("\n\n");
 
-    const result = await answerChain.invoke({
-        context,
-        question: question.trim()
-    });
+    const result = await withTimeout(
+        answerChain.invoke({
+            context,
+            question: question.trim()
+        }),
+        30000
+    );
 
-    return{
+    return {
         answer: result.content,
         sources: relevantChunks.map(chunk => ({
             section: chunk.section,
             text: chunk.text
         }))
     };
-    
+
 }
 
 module.exports = {

@@ -11,7 +11,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "AI-powered resume assistant using RAG, Gemini, PostgreSQL, and Express.",
   "dependencies": {
     "@google/genai": "^2.21.0",
     "@langchain/core": "^1.2.17",
