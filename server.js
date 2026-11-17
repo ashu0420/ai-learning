@@ -1,11 +1,20 @@
 require("dotenv").config();
 
+const multer = require("multer");
+const { createResumeSession } = require("./resume-service");
 const rateLimit = require("express-rate-limit");
 const express = require("express");
 const {
     answerResumeQuestion,
     streamResumeAnswer
 } = require("./rag-service");
+const {
+    getSession,
+    getConversationHistory,
+    saveMessage,
+    deleteSession,
+    deleteExpiredSessions
+} = require("./session-service");
 const { closePool, checkDatabase } = require("./rag");
 
 const app = express();
@@ -20,7 +29,17 @@ const chatLimiter = rateLimit({
     standardHeaders: "draft-8",
     legacyHeaders: false
 });
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5 MB
+    }
+});
 
+function isValidUUID(value) {
+    return typeof value === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
 app.use((req, res, next) => {
 
     const startTime = Date.now();
@@ -60,9 +79,67 @@ app.get("/health/ready", async (req, res) => {
     }
 });
 
+app.post(
+    "/api/resumes",
+    upload.single("resume"),
+    async (req, res) => {
+        try {
+            if (!req.file) {
+                return res.status(400).json({
+                    error: "Please upload a PDF resume."
+                });
+            }
+
+            // Check the actual PDF signature, not just the extension.
+            if (!req.file.buffer.subarray(0, 5).equals(Buffer.from("%PDF-"))) {
+                return res.status(400).json({
+                    error: "Invalid PDF file."
+                });
+            }
+
+            const session = await createResumeSession(
+                req.file.buffer,
+                req.file.originalname
+            );
+
+            return res.status(201).json({
+                message: "Resume uploaded successfully.",
+                ...session
+            });
+
+        } catch (error) {
+            console.error("Resume upload error:", error.message);
+
+            if (error instanceof multer.MulterError) {
+                if (error.code === "LIMIT_FILE_SIZE") {
+                    return res.status(413).json({
+                        error: "Resume must be 5 MB or smaller."
+                    });
+                }
+            }
+
+            if (error.message.includes("no extractable text")) {
+                return res.status(400).json({
+                    error: "Could not extract text from this PDF. Please upload a text-based PDF."
+                });
+            }
+
+            return res.status(500).json({
+                error: "Resume processing failed. Please try again."
+            });
+        }
+    }
+);
+
 app.post("/api/chat", chatLimiter, async (req, res) => {
     try {
-        const { question } = req.body || {};
+        const { sessionId, question } = req.body || {};
+
+        if (!isValidUUID(sessionId)) {
+            return res.status(400).json({
+                error: "A valid session ID is required."
+            });
+        }
 
         if (typeof question !== "string" || !question.trim()) {
             return res.status(400).json({
@@ -76,8 +153,32 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
             });
         }
 
-        const result = await answerResumeQuestion(question.trim());
+        const session = await getSession(sessionId);
+
+        if (!session) {
+            return res.status(404).json({
+                error: "Session not found or expired."
+            });
+        }
+
+        const history = await getConversationHistory(sessionId);
+
+        await saveMessage(sessionId, "user", question.trim());
+
+        const result = await answerResumeQuestion(
+            sessionId,
+            question.trim(),
+            history
+        );
+
+        await saveMessage(
+            sessionId,
+            "assistant",
+            result.answer
+        );
+
         return res.json(result);
+
     } catch (error) {
         console.error("Chat API error:", error.message);
 
@@ -93,14 +194,20 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
             });
         }
 
-        res.status(500).json({
+        return res.status(500).json({
             error: "An unexpected error occurred while answering your question."
         });
     }
 });
 
 app.post("/api/chat/stream", chatLimiter, async (req, res) => {
-    const { question } = req.body || {};
+    const { sessionId, question } = req.body || {};
+
+    if (!isValidUUID(sessionId)) {
+        return res.status(400).json({
+            error: "A valid session ID is required."
+        });
+    }
 
     if (typeof question !== "string" || !question.trim()) {
         return res.status(400).json({
@@ -114,25 +221,56 @@ app.post("/api/chat/stream", chatLimiter, async (req, res) => {
         });
     }
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("Connection", "keep-alive");
-    res.flushHeaders();
-
     try {
-        for await (const event of streamResumeAnswer(question.trim())) {
-            if (res.destroyed) {
-                break;
+        const session = await getSession(sessionId);
+
+        if (!session) {
+            return res.status(404).json({
+                error: "Session not found or expired."
+            });
+        }
+
+        const history = await getConversationHistory(sessionId);
+
+        await saveMessage(sessionId, "user", question.trim());
+
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("Connection", "keep-alive");
+        res.flushHeaders();
+
+        let answer = "";
+
+        for await (const event of streamResumeAnswer(
+            sessionId,
+            question.trim(),
+            history
+        )) {
+            if (res.destroyed) break;
+
+            if (event.type === "token") {
+                answer += event.content;
             }
 
             res.write(`data: ${JSON.stringify(event)}\n\n`);
         }
 
+        if (!res.destroyed && answer) {
+            await saveMessage(sessionId, "assistant", answer);
+        }
+
         if (!res.destroyed) {
             res.end();
         }
+
     } catch (error) {
         console.error("Streaming API error:", error.message);
+
+        if (!res.headersSent) {
+            return res.status(500).json({
+                error: "An unexpected error occurred while generating the answer."
+            });
+        }
 
         if (!res.destroyed) {
             res.write(`data: ${JSON.stringify({
@@ -147,6 +285,71 @@ app.post("/api/chat/stream", chatLimiter, async (req, res) => {
     }
 });
 
+
+app.get("/api/sessions/:sessionId", async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+
+        if (!isValidUUID(sessionId)) {
+            return res.status(400).json({
+                error: "Invalid session ID."
+            });
+        }
+
+        const session = await getSession(sessionId);
+
+        if (!session) {
+            return res.status(404).json({
+                error: "Session not found or expired."
+            });
+        }
+
+        const history = await getConversationHistory(sessionId, 100);
+
+        return res.json({
+            session,
+            messages: history
+        });
+
+    } catch (error) {
+        console.error("Session retrieval error:", error.message);
+
+        return res.status(500).json({
+            error: "Could not retrieve session."
+        });
+    }
+});
+
+app.delete("/api/sessions/:sessionId", async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+
+        if (!isValidUUID(sessionId)) {
+            return res.status(400).json({
+                error: "Invalid session ID."
+            });
+        }
+
+        const deleted = await deleteSession(sessionId);
+
+        if (!deleted) {
+            return res.status(404).json({
+                error: "Session not found."
+            });
+        }
+
+        return res.json({
+            message: "Session deleted successfully."
+        });
+
+    } catch (error) {
+        console.error("Session deletion error:", error.message);
+
+        return res.status(500).json({
+            error: "Could not delete session."
+        });
+    }
+});
 app.use((req, res) => {
     return res.status(404).json({
         error: "Endpoint not found"
@@ -172,7 +375,21 @@ app.use((err, req, res, next) => {
         error: "An error occurred while processing the request."
     });
 });
+const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
 
+const cleanupTimer = setInterval(async () => {
+    try {
+        const deletedCount = await deleteExpiredSessions();
+
+        if (deletedCount > 0) {
+            console.log(`Cleaned up ${deletedCount} expired sessions.`);
+        }
+    } catch (error) {
+        console.error("Session cleanup failed:", error.message);
+    }
+}, CLEANUP_INTERVAL);
+
+cleanupTimer.unref();
 
 let isShuttingDown = false;
 let shutdownPromise;
@@ -183,6 +400,7 @@ function shutdown(signal, serverInstance = server) {
     }
 
     isShuttingDown = true;
+    clearInterval(cleanupTimer);
 
     shutdownPromise = new Promise((resolve, reject) => {
         console.log(`${signal} received. Starting graceful shutdown...`);
