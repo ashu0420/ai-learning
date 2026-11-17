@@ -1,11 +1,26 @@
 require("dotenv").config();
 
+const rateLimit = require("express-rate-limit");
 const express = require("express");
-const { answerResumeQuestion } = require("./rag-service");
+const {
+    answerResumeQuestion,
+    streamResumeAnswer
+} = require("./rag-service");
 const { closePool, checkDatabase } = require("./rag");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+const chatLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: Number(process.env.RATE_LIMIT_MAX) || 100,
+    message: {
+        error: "Too many requests. Please try again later."
+    },
+    standardHeaders: "draft-8",
+    legacyHeaders: false
+});
+
 app.use((req, res, next) => {
 
     const startTime = Date.now();
@@ -45,7 +60,7 @@ app.get("/health/ready", async (req, res) => {
     }
 });
 
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", chatLimiter, async (req, res) => {
     try {
         const { question } = req.body || {};
 
@@ -84,6 +99,54 @@ app.post("/api/chat", async (req, res) => {
     }
 });
 
+app.post("/api/chat/stream", chatLimiter, async (req, res) => {
+    const { question } = req.body || {};
+
+    if (typeof question !== "string" || !question.trim()) {
+        return res.status(400).json({
+            error: "Please provide a non-empty question."
+        });
+    }
+
+    if (question.length > 1000) {
+        return res.status(400).json({
+            error: "Question must be 1000 characters or fewer."
+        });
+    }
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
+    try {
+        for await (const event of streamResumeAnswer(question.trim())) {
+            if (res.destroyed) {
+                break;
+            }
+
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+        }
+
+        if (!res.destroyed) {
+            res.end();
+        }
+    } catch (error) {
+        console.error("Streaming API error:", error.message);
+
+        if (!res.destroyed) {
+            res.write(`data: ${JSON.stringify({
+                type: "error",
+                error: error.code === "AI_TIMEOUT"
+                    ? "The AI service took too long to respond."
+                    : "An unexpected error occurred while generating the answer."
+            })}\n\n`);
+
+            res.end();
+        }
+    }
+});
+
 app.use((req, res) => {
     return res.status(404).json({
         error: "Endpoint not found"
@@ -110,43 +173,95 @@ app.use((err, req, res, next) => {
     });
 });
 
-const server = app.listen(PORT, () => {
-    console.log(`Resume assistant API running on port ${PORT}`);
-});
 
 let isShuttingDown = false;
-async function shutdown(signal) {
-    if (isShuttingDown) {
-        return;
+let shutdownPromise;
+let server
+function shutdown(signal, serverInstance = server) {
+    if (shutdownPromise) {
+        return shutdownPromise;
     }
 
     isShuttingDown = true;
-    console.log(`${signal} received. Starting graceful shutdown...`);
-    const shutdownTimer = setTimeout(() => {
-        console.error("Graceful shutdown timed out. Forcing exit.");
-        process.exit(1);
-    }, 10000);
 
-    server.close(async (err) => {
-        if (err) {
-            console.error("HTTP server shutdown error:", err);
+    shutdownPromise = new Promise((resolve, reject) => {
+        console.log(`${signal} received. Starting graceful shutdown...`);
+
+        const shutdownTimer = setTimeout(() => {
+            console.error("Graceful shutdown timed out. Forcing exit.");
             process.exit(1);
+        }, 10000);
+
+        const closeDatabase = async () => {
+            try {
+                await closePool();
+
+                clearTimeout(shutdownTimer);
+
+                console.log("PostgreSQL connection pool closed.");
+                resolve();
+            } catch (error) {
+                clearTimeout(shutdownTimer);
+
+                console.error("Database shutdown error:", error.message);
+                reject(error);
+            }
+        };
+
+        const closeHttpServer = () => {
+            serverInstance.close(async (err) => {
+                if (err) {
+                    clearTimeout(shutdownTimer);
+                    reject(err);
+                    return;
+                }
+
+                console.log("HTTP server closed.");
+
+                await closeDatabase();
+            });
+        };
+
+        if (!serverInstance) {
+            closeDatabase();
+            return;
         }
 
-        console.log("HTTP server closed.");
+        if (serverInstance.listening) {
+            closeHttpServer();
+        } else {
+            // Server exists but may not have finished starting.
+            serverInstance.once("listening", closeHttpServer);
 
-        try {
-            await closePool();
-            clearTimeout(shutdownTimer);
-            console.log("PostgreSQL connection pool closed.");
-            process.exit(0);
-        } catch (error) {
-            console.error("Database shutdown error:", error.message);
-            process.exit(1);
+            serverInstance.once("error", (error) => {
+                clearTimeout(shutdownTimer);
+                reject(error);
+            });
         }
     });
-}
 
+    return shutdownPromise;
+}
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
+
+function startServer(port = PORT) {
+    server = app.listen(port, () => {
+        console.log(
+            `Resume assistant API running on port ${server.address().port}`
+        );
+    });
+
+    return server;
+}
+
+module.exports = {
+    app,
+    startServer,
+    shutdown
+};
+
+if (require.main === module) {
+    startServer();
+}
