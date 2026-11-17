@@ -2,6 +2,8 @@ const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const { searchResume } = require("./rag");
 
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 30000;
+
 function withTimeout(promise, timeoutMs) {
     let timeoutId;
 
@@ -17,7 +19,6 @@ function withTimeout(promise, timeoutMs) {
         .finally(() => clearTimeout(timeoutId));
 }
 
-
 const model = new ChatGoogleGenerativeAI({
     model: "gemini-3.1-flash-lite",
     apiKey: process.env.GEMINI_API_KEY
@@ -25,41 +26,42 @@ const model = new ChatGoogleGenerativeAI({
 
 const promptTemplate = PromptTemplate.fromTemplate(`
     You are a helpful resume assistant.
-    
+
     Answer the user's question using only the resume context below.
     If the context does not contain enough information, say you could
     not find enough information in the resume.
-    
+
     Do not invent facts or infer personal preferences.
-    
+
     Resume context:
     {context}
-    
+
     User question:
     {question}
-    `);
+`);
 
 const answerChain = promptTemplate.pipe(model);
 
 const relevanceTemplate = PromptTemplate.fromTemplate(`
     You are evaluating resume evidence.
-    
+
     Question:
     {question}
-    
+
     Resume chunks:
     {chunks}
-    
+
     For each chunk, determine whether it directly answers the question
     or supports the requested factual answer.
-    
+
     Do not infer personal preferences from skills or project experience.
     Evaluate only the supplied text.
-    
+
     Return ONLY the numbers of relevant chunks, separated by commas.
     For example: 1,3
     If none are relevant, return NONE.
-    `);
+`);
+
 const relevanceChain = relevanceTemplate.pipe(model);
 
 async function getRelevantChunkIndexes(question, chunks) {
@@ -73,7 +75,9 @@ async function getRelevantChunkIndexes(question, chunks) {
         relevanceChain.invoke({
             question,
             chunks: formattedChunks
-        }), 30000);
+        }),
+        AI_TIMEOUT_MS
+    );
 
     const judgment = String(result.content).trim().toUpperCase();
 
@@ -131,7 +135,7 @@ async function answerResumeQuestion(question) {
             context,
             question: question.trim()
         }),
-        30000
+        AI_TIMEOUT_MS
     );
 
     return {
@@ -141,9 +145,69 @@ async function answerResumeQuestion(question) {
             text: chunk.text
         }))
     };
-
 }
+async function* streamResumeAnswer(question) {
+    console.log("Stage 1: Searching resume...");
 
+    const chunks = await searchResume(question);
+
+    console.log("Stage 1 complete. Chunks:", chunks.length);
+
+    console.log("Stage 2: Evaluating relevance...");
+
+    const relevantIndexes = await getRelevantChunkIndexes(
+        question.trim(),
+        chunks
+    );
+
+    console.log("Stage 2 complete. Relevant indexes:", relevantIndexes);
+
+    const relevantChunks = relevantIndexes.map(
+        index => chunks[index]
+    );
+
+    if (relevantChunks.length === 0) {
+        yield {
+            type: "token",
+            content: "I couldn't find enough relevant information in the resume to answer that question."
+        };
+        yield { type: "done" };
+        return;
+    }
+
+    const sources = relevantChunks.map(chunk => ({
+        section: chunk.section,
+        text: chunk.text
+    }));
+
+    // Send sources before generating the answer.
+    yield {
+        type: "sources",
+        sources
+    };
+
+    const context = relevantChunks
+        .map(chunk => `Section: ${chunk.section}\n${chunk.text}`)
+        .join("\n\n");
+
+    const stream = await answerChain.stream({
+        context,
+        question: question.trim()
+    });
+
+    // Generate and emit answer incrementally.
+    for await (const chunk of stream) {
+        if (chunk.content) {
+            yield {
+                type: "token",
+                content: chunk.content
+            };
+        }
+    }
+
+    yield { type: "done" };
+}
 module.exports = {
-    answerResumeQuestion
+    answerResumeQuestion,
+    streamResumeAnswer
 };
