@@ -182,5 +182,6 @@ async function createResumeSession(buffer, filename) {
 module.exports = {
     extractResumeText,
     splitResumeIntoChunks,
+    createTextChunks,
     createResumeSession
 };
