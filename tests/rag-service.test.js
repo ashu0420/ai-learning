@@ -64,7 +64,11 @@ describe("RAG Service Timeout", () => {
 
     test("should throw AI_TIMEOUT when answer generation exceeds timeout", async () => {
         await expect(
-            answerResumeQuestion("What did I study?")
+            answerResumeQuestion(
+                "4e8581b6-9d5b-4b88-bb88-a43f5e32cef8",
+                "What did I study?",
+                []
+            )
         ).rejects.toMatchObject({
             code: "AI_TIMEOUT",
             message: "AI operation timed out"

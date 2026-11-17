@@ -1,5 +1,6 @@
 jest.mock("../rag-service", () => ({
-    answerResumeQuestion: jest.fn()
+    answerResumeQuestion: jest.fn(),
+    streamResumeAnswer: jest.fn()
 }));
 
 jest.mock("../rag", () => ({
@@ -7,10 +8,31 @@ jest.mock("../rag", () => ({
     closePool: jest.fn()
 }));
 
+jest.mock("../session-service", () => ({
+    getSession: jest.fn(),
+    getConversationHistory: jest.fn(),
+    saveMessage: jest.fn(),
+    deleteSession: jest.fn(),
+    deleteExpiredSessions: jest.fn()
+}));
+
+jest.mock("../resume-service", () => ({
+    createResumeSession: jest.fn()
+}));
+
 const { checkDatabase, closePool } = require("../rag");
 const { answerResumeQuestion } = require("../rag-service");
+
+const {
+    getSession,
+    getConversationHistory,
+    saveMessage
+} = require("../session-service");
+
 const request = require("supertest");
 const { app, startServer, shutdown } = require("../server");
+
+const SESSION_ID = "4e8581b6-9d5b-4b88-bb88-a43f5e32cef8";
 
 jest.spyOn(process, "exit").mockImplementation(() => { });
 
@@ -18,6 +40,19 @@ jest.spyOn(process, "exit").mockImplementation(() => { });
 describe("Health API", () => {
     beforeEach(() => {
         jest.clearAllMocks();
+
+        getSession.mockResolvedValue({
+            id: SESSION_ID,
+            filename: "test-resume.pdf",
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        });
+
+        getConversationHistory.mockResolvedValue([]);
+
+        saveMessage.mockResolvedValue({
+            id: 1,
+            session_id: SESSION_ID
+        });
     });
 
     test("GET /health/live should return 200 and alive status", async () => {
@@ -49,6 +84,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: ""
             });
 
@@ -62,7 +98,7 @@ describe("Health API", () => {
     test("POST /api/chat should reject a missing question", async () => {
         const response = await request(app)
             .post("/api/chat")
-            .send({});
+            .send({ sessionId: SESSION_ID, });
 
         expect(response.status).toBe(400);
 
@@ -75,6 +111,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: 123
             });
 
@@ -89,6 +126,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: "a".repeat(1001)
             });
 
@@ -154,6 +192,7 @@ describe("Health API", () => {
             .post("/api/chat")
             .set("Content-Type", "application/json")
             .send(JSON.stringify({
+                sessionId: SESSION_ID,
                 question: "a".repeat(11000)
             }));
 
@@ -175,6 +214,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: "  What did I study?  "
             });
 
@@ -185,8 +225,11 @@ describe("Health API", () => {
 
         expect(response.body).toEqual(mockedAnswer);
 
-        expect(answerResumeQuestion)
-            .toHaveBeenCalledWith("What did I study?");
+        expect(answerResumeQuestion).toHaveBeenCalledWith(
+            SESSION_ID,
+            "What did I study?",
+            []
+        );
     });
 
     test("POST /api/chat should return 504 when AI service times out", async () => {
@@ -199,6 +242,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: "What did I study?"
             });
 
@@ -218,6 +262,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: "What did I study?"
             });
 
@@ -237,6 +282,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: "What did I study?"
             });
 
@@ -255,6 +301,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: "What did I study?"
             });
 
@@ -282,6 +329,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question
             });
 
@@ -289,14 +337,18 @@ describe("Health API", () => {
 
         expect(response.body).toEqual(mockedAnswer);
 
-        expect(answerResumeQuestion)
-            .toHaveBeenCalledWith(question);
+        expect(answerResumeQuestion).toHaveBeenCalledWith(
+            SESSION_ID,
+            question,
+            []
+        );
     });
 
     test("POST /api/chat should reject a whitespace-only question", async () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: "     "
             });
 
@@ -313,6 +365,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: "\t\n   \t"
             });
 
@@ -336,6 +389,7 @@ describe("Health API", () => {
         const response = await request(app)
             .post("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: "\t\nWhat did I study?\n\t"
             });
 
@@ -343,8 +397,11 @@ describe("Health API", () => {
 
         expect(response.body).toEqual(mockedAnswer);
 
-        expect(answerResumeQuestion)
-            .toHaveBeenCalledWith("What did I study?");
+        expect(answerResumeQuestion).toHaveBeenCalledWith(
+            SESSION_ID,
+            "What did I study?",
+            []
+        );
     });
 
     test("GET /api/chat should return 404", async () => {
@@ -364,6 +421,7 @@ describe("Health API", () => {
         const response = await request(app)
             .put("/api/chat")
             .send({
+                sessionId: SESSION_ID,
                 question: "What did I study?"
             });
 
@@ -415,6 +473,7 @@ describe("Health API", () => {
             response = await request(app)
                 .post("/api/chat")
                 .send({
+                    sessionId: SESSION_ID,
                     question: "Test question"
                 });
         }
@@ -542,7 +601,7 @@ describe("Graceful Shutdown", () => {
             jest.useRealTimers();
         }
 
-        });
+    });
 });
 
 

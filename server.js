@@ -135,12 +135,6 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     try {
         const { sessionId, question } = req.body || {};
 
-        if (!isValidUUID(sessionId)) {
-            return res.status(400).json({
-                error: "A valid session ID is required."
-            });
-        }
-
         if (typeof question !== "string" || !question.trim()) {
             return res.status(400).json({
                 error: "Please provide a non-empty question."
@@ -150,6 +144,12 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
         if (question.length > 1000) {
             return res.status(400).json({
                 error: "Question must be 1000 characters or fewer."
+            });
+        }
+
+        if (!isValidUUID(sessionId)) {
+            return res.status(400).json({
+                error: "A valid session ID is required."
             });
         }
 
