@@ -1,13 +1,15 @@
 {
   "name": "ai-learning",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev":"node --watch server.js",
-    "ingest": "node index.js",
-    "query": "node query.js",
-    "evaluate": "node evaluate.js",
+    "dev": "node --watch server.js",
+    "ingest": "node scripts/ingest.js",
+    "query": "node scripts/query.js",
+    "evaluate": "node scripts/evaluate-retrieval.js",
+    "evaluate:relevance": "node scripts/evaluate-relevance.js",
+    "test:retrieval": "node scripts/test-retrieval.js",
     "test": "jest --runInBand"
   },
   "keywords": [],
