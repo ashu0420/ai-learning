@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-const { searchResume } = require("./rag");
+const { searchResume } = require("../rag");
 const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
 const { PromptTemplate } = require("@langchain/core/prompts");
 

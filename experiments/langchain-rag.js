@@ -2,7 +2,7 @@ require("dotenv").config();
 
 const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
 const { PromptTemplate } = require("@langchain/core/prompts");
-const { searchResume } = require("./rag");
+const { searchResume } = require("../rag");
 
 const model = new ChatGoogleGenerativeAI({
     model: "gemini-3.1-flash-lite",

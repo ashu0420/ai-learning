@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 const { GoogleGenAI } = require("@google/genai");
-const { searchResume } = require("./rag");
+const { searchResume } = require("../rag");
 
 
 const ai = new GoogleGenAI({

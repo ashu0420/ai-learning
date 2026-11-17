@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-const { searchResume } = require("./rag");
+const { searchResume } = require("../rag");
 
 async function main() {
     const questions = [
