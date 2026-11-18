@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const multer = require("multer");
+const cors = require("cors");
 const { createResumeSession } = require("./resume-service");
 const rateLimit = require("express-rate-limit");
 const express = require("express");
@@ -62,6 +63,9 @@ function isValidUUID(value) {
     return typeof value === "string" &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
+app.use(cors({
+    origin: process.env.FRONTEND_URL || "http://localhost:5173"
+}));
 app.use((req, res, next) => {
 
     const startTime = Date.now();
