@@ -1,605 +1,259 @@
-# Resume RAG with Node.js, Gemini & PostgreSQL
+# Resume RAG Assistant
 
-An AI-powered resume assistant built using **Retrieval-Augmented Generation (RAG)**. The application processes a resume PDF, stores its embeddings in PostgreSQL with pgvector, retrieves relevant information, and generates answers using Google's Gemini models.
+An AI-powered resume assistant built with **Retrieval-Augmented Generation (RAG)**. Upload a PDF resume and ask questions about the candidate's skills, projects, education, experience, and achievements.
 
-The project is designed for learning and educational purposes, with a focus on RAG, embeddings, vector search, backend development, and AI application reliability.
+The application uses **Google Gemini** for embeddings and answer generation, **PostgreSQL with pgvector** for vector storage and similarity search, **Node.js and Express** for the backend, and **React with Vite** for the frontend.
+
+Each uploaded resume creates an independent session. Resume chunks and conversation messages are associated with that session, and sessions automatically expire after **24 hours**.
 
 ## Features
 
-### RAG pipeline
-- Extracts text from a resume PDF.
-- Identifies meaningful resume sections and splits content into chunks.
-- Generates embeddings using Gemini.
-- Stores resume chunks and embeddings in PostgreSQL with pgvector.
-- Retrieves relevant chunks using vector similarity search.
-- Uses retrieved context to generate answers with Gemini.
-- Supports query rewriting to improve retrieval.
-- Applies a similarity threshold to filter weak matches.
-- Maintains short conversation history in memory.
-- Supports incremental ingestion using content hashes.
-- Uses stable chunk IDs to identify resume chunks.
+### Resume processing and RAG
+- Upload PDF resumes (maximum file size: 5 MB).
+- Extract text from uploaded PDFs.
+- Identify resume sections and split content into smaller chunks.
+- Generate embeddings using Google Gemini.
+- Store resume chunks and embeddings in PostgreSQL with pgvector.
+- Retrieve session-specific resume content using vector similarity search.
+- Generate answers using the retrieved resume context.
+- Return relevant source chunks with answers.
 
-### Backend API
-- Express.js REST API.
-- Resume question-answering endpoint.
-- Request validation and request-body size limit.
+### Session management
+- Create a separate session for each resume upload.
+- Isolate resume documents and conversation history by session ID.
+- Persist conversation messages in PostgreSQL.
+- Restore an active session after refreshing or reopening the browser.
+- Replace a resume by creating a new session.
+- Delete a session and its associated documents and messages.
+- Automatically expire sessions after 24 hours.
+
+### Backend
+- Express.js API.
+- PDF upload handling and validation with Multer.
+- Request validation and rate limiting.
 - Liveness and database-readiness health checks.
+- PostgreSQL connection pooling.
+- AI timeout and error handling.
 - Request logging with response status and duration.
-- Centralized error handling.
-- AI timeout handling.
-- Graceful shutdown of the HTTP server and PostgreSQL connection pool.
-- Rate limiting.
+- Graceful shutdown of the HTTP server and database connection pool.
+- Server-Sent Events (SSE) endpoint for streamed answers.
 
 ### Frontend
 - React application built with Vite.
-- Chat interface for asking questions about the resume.
+- Resume upload interface and chat experience.
+- Session restoration using browser `localStorage`.
+- Resume replacement and session deletion.
 - Markdown rendering for generated answers.
-- Displays retrieved source information.
-- Provides suggested questions and retry functionality.
+- Retrieved source display.
+- Suggested questions and error handling.
 
-### Evaluation
-- Recall@3 retrieval evaluation.
-- Predefined questions for checking retrieval quality.
-- Relevance evaluation of retrieved resume chunks.
-- Retrieval testing utility.
+### Testing and evaluation
+- Automated backend tests using Jest and Supertest.
+- API and upload validation tests.
+- Resume processing and session management tests.
+- RAG service tests.
+- Retrieval evaluation utilities.
 
 ## Architecture
 
+The application has two primary flows: resume ingestion and question answering.
+
+### 1. Resume ingestion
+
 ```text
-                         Resume PDF
-                             |
-                             v
-                      PDF text extraction
-                             |
-                             v
-                    Section identification
-                             |
-                             v
-                        Text chunking
-                             |
-                             v
-                      Gemini embeddings
-                             |
-                             v
-                     PostgreSQL + pgvector
-                             |
-                             |
-User question                |
-      |                      |
-      v                      |
- React frontend              |
-      |                      |
-      v                      |
- Express API                 |
-      |                      |
-      v                      |
- Query rewriting             |
-      |                      |
-      v                      |
- Gemini query embedding      |
-      |                      |
-      v                      |
- Vector similarity search <--
-      |
-      v
- Relevant resume chunks
-      |
-      v
- Similarity threshold
-      |
-      v
- Gemini answer generation
-      |
-      v
- API response
-      |
-      v
- React chat interface
+User selects a PDF
+       |
+       v
+React frontend
+       |
+       v
+Express upload endpoint
+       |
+       v
+Multer validation (PDF, size limit)
+       |
+       v
+PDF text extraction
+       |
+       v
+Section identification and chunking
+       |
+       v
+Gemini embedding generation
+       |
+       v
+Create session and store chunks
+       |
+       v
+PostgreSQL + pgvector
+   |              |
+   v              v
+Sessions       Documents
 ```
 
-## Tech Stack
+### 2. Question answering
+
+```text
+User question
+     |
+     v
+React frontend
+     |
+     v
+Express chat endpoint
+     |
+     v
+Validate question and active session
+     |
+     v
+Load conversation history
+     |
+     v
+Generate query embedding
+     |
+     v
+Session-filtered vector search
+     |
+     v
+Relevant resume chunks
+     |
+     v
+Gemini answer generation
+     |
+     v
+Save conversation and return answer + sources
+     |
+     v
+React chat interface
+```
+
+### 3. Session and data lifecycle
+
+- Each upload creates a UUID session.
+- Every resume chunk and conversation message references its session.
+- Retrieval queries filter documents by the active session ID.
+- Conversation history is persisted in PostgreSQL.
+- Sessions expire after 24 hours.
+- Deleting a session cascades to its associated documents and messages.
+- The frontend stores the active session ID in `localStorage` to restore it on a later visit.
+
+**Security note:** The application currently has no user authentication or authorization. A session ID is used to identify a session, but it is not a substitute for a full user identity and access-control system. Do not treat the current implementation as suitable for storing sensitive resumes in a public production service without additional security controls.
+
+## Tech stack
 
 | Technology | Purpose |
 |---|---|
 | Node.js | JavaScript runtime |
-| Express.js | Backend REST API |
+| Express.js | Backend API |
 | React | Frontend user interface |
-| Vite | Frontend development server and build tool |
+| Vite | Frontend development and build tooling |
 | Google Gemini | Embeddings and answer generation |
-| PostgreSQL | Database |
-| pgvector | Vector similarity search |
-| LangChain | LLM and chain integration |
-| pdf-parse | Resume PDF text extraction |
-| pg | PostgreSQL client |
+| PostgreSQL | Relational database |
+| pgvector | Vector storage and similarity search |
+| LangChain | LLM and prompt integration |
+| `pdf-parse` | PDF text extraction |
+| `pg` | PostgreSQL client |
+| Multer | Multipart file upload handling |
 | dotenv | Environment variable management |
-| Jest | Backend automated tests |
+| Jest | Automated testing |
 | Supertest | HTTP API testing |
 
-## Project Structure
+## Project structure
 
 ```text
 ai-learning/
-│
 ├── client/                         # React + Vite frontend
 │   ├── src/
-│   │   ├── components/              # Chat UI components
-│   │   ├── services/                # API communication
+│   │   ├── components/
+│   │   │   ├── ChatInput.jsx
+│   │   │   ├── Message.jsx
+│   │   │   └── Welcome.jsx
+│   │   ├── services/
+│   │   │   └── chatService.js
 │   │   ├── App.jsx
 │   │   ├── App.css
 │   │   ├── index.css
 │   │   └── main.jsx
 │   ├── package.json
 │   └── vite.config.js
-│
-├── scripts/
-│   ├── ingest.js                    # Resume ingestion
-│   ├── query.js                     # RAG question-answering CLI
-│   ├── evaluate-retrieval.js        # Recall@3 evaluation
-│   ├── evaluate-relevance.js        # Retrieval relevance evaluation
-│   └── test-retrieval.js            # Retrieval testing
-│
-├── experiments/
-│   ├── langchain-rag.js             # LangChain RAG experiment
-│   ├── langchain-test.js            # LangChain testing
-│   └── tool-calling.js              # Gemini tool-calling experiment
-│
-├── tests/
-│   ├── server.test.js               # API and server tests
-│   └── rag-service.test.js          # RAG service tests
-│
-├── rag.js                           # PostgreSQL vector retrieval
-├── rag-service.js                   # RAG answer generation service
-├── server.js                        # Express REST API
-├── mastercv.pdf                     # Resume PDF used for ingestion
+├── scripts/                        # Ingestion and evaluation utilities
+│   ├── ingest.js
+│   ├── query.js
+│   ├── evaluate-retrieval.js
+│   ├── evaluate-relevance.js
+│   └── test-retrieval.js
+├── experiments/                    # Standalone learning experiments
+│   ├── langchain-rag.js
+│   ├── langchain-test.js
+│   └── tool-calling.js
+├── tests/                           # Automated backend tests
+│   ├── server.test.js
+│   ├── upload.test.js
+│   ├── rag-service.test.js
+│   ├── resume-service.test.js
+│   └── session-service.test.js
+├── db.js                            # PostgreSQL connection pool
+├── rag.js                           # Embeddings and vector retrieval
+├── rag-service.js                   # RAG answer generation
+├── resume-service.js                # PDF processing and session creation
+├── session-service.js               # Session and conversation management
+├── server.js                        # Express API and server lifecycle
 ├── package.json
 ├── package-lock.json
-├── .env                             # Local environment variables
-└── README.md
+├── README.md
+└── .gitignore
 ```
 
-The main application is implemented in `server.js`, `rag-service.js`, and `rag.js`. The `client/` directory contains the frontend. The `scripts/` directory contains ingestion, CLI, and evaluation utilities. The `experiments/` directory contains standalone learning experiments.
+### Core backend modules
 
-## How the RAG Pipeline Works
+| Module | Responsibility |
+|---|---|
+| `server.js` | Express routes, middleware, validation, health checks, and server lifecycle |
+| `db.js` | Shared PostgreSQL connection pool and database utilities |
+| `resume-service.js` | PDF extraction, section identification, chunking, embedding generation, and session creation |
+| `rag.js` | Gemini embeddings and session-specific vector retrieval |
+| `rag-service.js` | Prompt construction, conversation context, and Gemini answer generation |
+| `session-service.js` | Session validation, conversation history, deletion, and expiry cleanup |
+
+The `client/` directory contains the frontend. The `scripts/` directory contains command-line ingestion and retrieval utilities. The `experiments/` directory contains standalone experiments, and `tests/` contains automated backend tests.
+
+## How the RAG pipeline works
 
 ### 1. Resume ingestion
 
-The ingestion pipeline reads the resume PDF and extracts its text.
-
-The extracted content is organized into sections and divided into smaller chunks. Each chunk is processed to generate an embedding using Gemini. The embedding and corresponding resume content are stored in PostgreSQL.
+The backend receives a PDF upload, validates the file, and extracts its text. The extracted content is divided into meaningful resume sections and smaller chunks. Gemini generates an embedding for each chunk, and the chunks and vectors are stored in PostgreSQL.
 
 ### 2. Embeddings
 
-Embeddings represent text as numerical vectors.
+An embedding represents text as a numerical vector. The application uses Gemini embeddings for both resume chunks and user questions. This enables semantic retrieval rather than relying only on exact keyword matching.
 
-The project uses Gemini embeddings to convert resume chunks and user questions into vectors. These vectors allow the application to retrieve semantically relevant resume content rather than relying only on exact keyword matching.
-
-### 3. Vector database
-
-PostgreSQL stores the resume chunks and their embeddings. The pgvector extension enables vector similarity search.
-
-The stored information includes:
-- Resume chunk text
-- Resume section
-- Embedding
-- Content hash
-- Stable chunk ID
-
-### 4. Retrieval
+### 3. Retrieval
 
 When a user asks a question:
 
-1. The question is processed.
-2. Query rewriting may improve the question.
-3. Gemini generates an embedding for the query.
-4. PostgreSQL searches for similar resume chunks.
-5. The most relevant chunks are selected.
-6. The similarity threshold filters weak matches.
+1. The backend validates the question and active session.
+2. Conversation history is loaded for that session.
+3. Gemini generates an embedding for the current question.
+4. PostgreSQL searches for similar resume chunks belonging to that session.
+5. The most relevant chunks are selected, subject to the configured similarity threshold.
+6. Up to three chunks are returned to the answer-generation step.
 
-The current retrieval pipeline uses up to three results.
+### 4. Answer generation
 
-### 5. Answer generation
+The retrieved chunks and conversation history are supplied to Gemini. The model generates an answer grounded in the retrieved resume context. The backend saves the user and assistant messages and returns the answer with its source chunks.
 
-The retrieved resume chunks are provided as context to Gemini. Gemini generates an answer based on the available resume information.
+The similarity threshold and retrieval count are implementation settings; they should be evaluated against the project's retrieval dataset rather than treated as universal values.
 
-The RAG service returns the generated answer along with relevant source chunks.
+## Database
 
-## Database Setup
+The application uses PostgreSQL and the pgvector extension.
 
-The application uses PostgreSQL with the pgvector extension.
+### Prerequisites
 
-### Create the database
-
-```sql
-CREATE DATABASE ai_learning;
-```
-
-Connect to the database:
-
-```bash
-psql -d ai_learning
-```
-
-Enable pgvector:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-```
-
-### Documents table
-
-The ingestion pipeline stores resume chunks in the `documents` table.
-
-The table includes fields for:
-
-| Column | Purpose |
-|---|---|
-| `id` | Database record identifier |
-| `text` | Resume chunk content |
-| `embedding` | Vector representation of the chunk |
-| `section` | Resume section |
-| `content_hash` | Hash used for content change detection |
-| `chunk_id` | Stable identifier for the chunk |
-
-The embedding column is configured for:
-
-```sql
-VECTOR(3072)
-```
-
-The exact table definition and ingestion behavior are implemented in the ingestion script.
-
-## Vector Similarity Search
-
-The retrieval pipeline uses PostgreSQL and pgvector to search for relevant resume chunks.
-
-A simplified representation of the query is:
-
-```sql
-SELECT
-    section,
-    text,
-    embedding <=> $1 AS distance
-FROM documents
-WHERE embedding <=> $1 < 0.32
-ORDER BY embedding <=> $1
-LIMIT 3;
-```
-
-Here:
-
-- `$1` represents the query embedding.
-- `<=>` represents cosine distance in pgvector.
-- Lower distance means greater similarity.
-- The query retrieves up to three chunks.
-- The similarity threshold filters chunks with insufficient similarity.
-
-**Note:** The threshold is a project-specific retrieval setting. It should be evaluated and adjusted based on retrieval results rather than treated as a universal value.
-
-## Query Rewriting
-
-The application can rewrite a user question to improve retrieval.
-
-For example:
-
-**Original question:**
-
-```text
-What is my highest rating?
-```
-
-**Possible rewritten query:**
-
-```text
-What is my highest Codeforces rating?
-```
-
-The goal is to make the query more specific and improve the chance of retrieving the relevant resume section. Query rewriting does not guarantee that the correct information will be retrieved.
-
-## Incremental Ingestion
-
-The ingestion pipeline uses content hashes to identify changes in resume content.
-
-The process is:
-
-1. Extract resume text.
-2. Create chunks.
-3. Generate content hashes.
-4. Compare hashes with existing records.
-5. Identify new or changed content.
-6. Process the required chunks.
-
-This helps avoid unnecessarily reprocessing unchanged content. Stable chunk IDs are used to identify chunks across ingestion operations.
-
-## Backend API
-
-The project provides a REST API using Express.js. The backend connects the RAG service to HTTP clients.
-
-### Start the backend
-
-Install the root dependencies:
-
-```bash
-npm install
-```
-
-Start the server:
-
-```bash
-npm start
-```
-
-For development with Node.js watch mode:
-
-```bash
-npm run dev
-```
-
-The server uses the configured port. If no port is configured, it defaults to `3000`.
-
-### API endpoints
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/health/live` | Checks whether the server is running |
-| `GET` | `/health/ready` | Checks whether the application and database are ready |
-| `POST` | `/api/chat` | Answers questions using the resume RAG pipeline |
-
-### 1. Liveness check
-
-**Endpoint:**
-
-```http
-GET /health/live
-```
-
-Example:
-
-```bash
-curl -i http://localhost:3000/health/live
-```
-
-Successful response:
-
-```json
-{
-  "status": "alive"
-}
-```
-
-Status: `200 OK`
-
-This endpoint does not perform a database check.
-
-### 2. Readiness check
-
-**Endpoint:**
-
-```http
-GET /health/ready
-```
-
-Example:
-
-```bash
-curl -i http://localhost:3000/health/ready
-```
-
-Successful response:
-
-```json
-{
-  "status": "ready",
-  "database": "connected"
-}
-```
-
-Status: `200 OK`
-
-If the database is unavailable, the endpoint returns a not-ready response with status `503 Service Unavailable`.
-
-### 3. Resume question answering
-
-**Endpoint:**
-
-```http
-POST /api/chat
-```
-
-Request headers:
-
-```http
-Content-Type: application/json
-```
-
-Request body:
-
-```json
-{
-  "question": "What projects are listed on my resume?"
-}
-```
-
-Example request:
-
-```bash
-curl -i -X POST http://localhost:3000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"question":"What projects are listed on my resume?"}'
-```
-
-The response contains the generated answer and relevant source chunks. Its structure is:
-
-```json
-{
-  "answer": "Generated answer based on the resume context.",
-  "sources": [
-    {
-      "section": "Projects",
-      "text": "Relevant resume content..."
-    }
-  ]
-}
-```
-
-The actual answer and source content depend on the resume and retrieval results.
-
-## Request Validation
-
-The chat endpoint validates the incoming question. The question must:
-
-- Be provided in the request body.
-- Be a string.
-- Contain non-whitespace characters.
-- Not exceed 1000 characters.
-
-The endpoint trims whitespace before processing the question.
-
-Invalid or missing questions return `400 Bad Request`. Questions exceeding the configured length are also rejected.
-
-## Error Handling
-
-The backend uses centralized error handling.
-
-The API handles cases including:
-
-- Malformed JSON: `400 Bad Request`
-- Request body exceeding the configured 10 KB limit: `413 Payload Too Large`
-- Unknown endpoint: `404 Not Found`
-- AI request timeout: `504 Gateway Timeout`
-- Identified service or database unavailability: `503 Service Unavailable`
-- Unexpected internal errors: `500 Internal Server Error`
-
-Internal error details are logged on the server rather than exposed in the API response.
-
-## Request Logging
-
-The Express backend logs incoming requests and their completion details.
-
-The log includes:
-- HTTP method
-- Request URL
-- Response status
-- Request duration
-
-Example:
-
-```text
-POST /api/chat 200 - 4523ms
-```
-
-This helps observe backend behavior and identify slow requests.
-
-## Database Connection Pool
-
-The PostgreSQL backend uses a connection pool instead of creating a new database connection for every request.
-
-The pool configuration includes:
-
-- Maximum pool size: 10 connections
-- Idle connection timeout: 30 seconds
-- Connection timeout: 5 seconds
-- PostgreSQL statement timeout: 10 seconds
-
-The retrieval query also uses a client-side query timeout. These settings help manage database connections and prevent some database operations from running indefinitely. They do not limit the duration of the entire RAG request.
-
-## Graceful Shutdown
-
-The backend handles the following shutdown signals:
-
-```text
-SIGINT
-SIGTERM
-```
-
-During shutdown:
-
-1. The HTTP server stops accepting new connections.
-2. Existing HTTP connections are allowed to close.
-3. The PostgreSQL connection pool is closed.
-4. A force-shutdown timer handles cases where shutdown takes too long.
-
-This helps avoid leaving database connections open when the backend exits.
-
-## Frontend
-
-The frontend is a React application built with Vite and is located in the `client/` directory.
-
-Install frontend dependencies:
-
-```bash
-npm install --prefix client
-```
-
-Start the frontend development server:
-
-```bash
-npm run dev --prefix client
-```
-
-Build the frontend for production:
-
-```bash
-npm run build --prefix client
-```
-
-The Vite development configuration proxies API requests to the backend at `http://localhost:3000`. Start the backend separately when using the frontend locally.
-
-## Environment Variables
-
-Create a `.env` file in the project root:
-
-```env
-GEMINI_API_KEY=your_gemini_api_key
-
-PGUSER=your_postgres_username
-PGPASSWORD=your_postgres_password
-PGDATABASE=ai_learning
-PGHOST=localhost
-PGPORT=5432
-
-PORT=3000
-```
-
-| Variable | Description |
-|---|---|
-| `GEMINI_API_KEY` | Gemini API key |
-| `PGUSER` | PostgreSQL username |
-| `PGPASSWORD` | PostgreSQL password |
-| `PGDATABASE` | PostgreSQL database name |
-| `PGHOST` | PostgreSQL host |
-| `PGPORT` | PostgreSQL port |
-| `PORT` | Express server port |
-
-The application loads environment variables using dotenv.
-
-**Never commit `.env` or expose API keys and database credentials.**
-
-## Installation and Setup
-
-### 1. Clone the repository
-
-```bash
-git clone <repository-url>
-cd ai-learning
-```
-
-### 2. Install backend dependencies
-
-```bash
-npm install
-```
-
-### 3. Install frontend dependencies
-
-```bash
-npm install --prefix client
-```
-
-### 4. Configure environment variables
-
-Create the `.env` file in the project root and add the Gemini API key and PostgreSQL configuration shown above.
-
-### 5. Configure PostgreSQL
+- PostgreSQL
+- The pgvector extension installed for your PostgreSQL version
+- A database and schema matching the application's tables
+- A Gemini API key
 
 Create the database:
 
@@ -619,27 +273,251 @@ Enable pgvector:
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-Create the `documents` table according to the schema used by the ingestion implementation.
+### Tables
 
-### 6. Ingest the resume
+The application uses three primary tables.
 
-Place the resume PDF at the expected project location. The current project structure uses `mastercv.pdf` in the repository root.
+#### `sessions`
 
-Run:
+Stores metadata for each uploaded resume session.
 
-```bash
-npm run ingest
+| Column | Purpose |
+|---|---|
+| `id` | Session UUID |
+| `filename` | Uploaded PDF filename |
+| `created_at` | Session creation time |
+| `expires_at` | Session expiration time |
+
+#### `documents`
+
+Stores the extracted resume chunks and their embeddings.
+
+| Column | Purpose |
+|---|---|
+| `id` | Document record identifier |
+| `session_id` | Associated session UUID |
+| `text` | Resume chunk content |
+| `embedding` | Vector representation of the chunk |
+| `section` | Resume section |
+| `content_hash` | Hash used to identify chunk content |
+| `chunk_id` | Chunk identifier |
+
+The embedding column is configured for 3072 dimensions:
+
+```sql
+VECTOR(3072)
 ```
 
-This executes `scripts/ingest.js`, which extracts resume text, creates chunks, generates embeddings, and stores them in PostgreSQL.
+#### `messages`
 
-### 7. Start the backend
+Stores conversation history.
+
+| Column | Purpose |
+|---|---|
+| `id` | Message identifier |
+| `session_id` | Associated session UUID |
+| `role` | `user` or `assistant` |
+| `content` | Message content |
+| `created_at` | Message creation time |
+
+The `documents` and `messages` tables reference `sessions`. Cascading deletion removes the associated records when a session is deleted.
+
+> **Schema setup:** The repository's application code expects these tables and relationships to exist. Ensure the database schema is created or migrated to match the current implementation before starting the application. The commands above create the database and enable pgvector; they do not by themselves create all application tables.
+
+### Vector similarity search
+
+The retrieval service uses pgvector's cosine-distance operator (`<=>`). Conceptually, the query is:
+
+```sql
+SELECT
+    section,
+    text,
+    embedding <=> $1 AS distance
+FROM documents
+WHERE session_id = $2
+  AND embedding <=> $1 < 0.32
+ORDER BY embedding <=> $1
+LIMIT 3;
+```
+
+- `$1` is the query embedding.
+- `$2` is the active session UUID.
+- `<=>` calculates cosine distance.
+- Lower distance indicates greater similarity.
+- The session filter prevents chunks from other sessions from being retrieved.
+- The distance threshold filters weaker matches.
+
+The threshold shown is a project setting and may need adjustment based on evaluation results.
+
+## Backend API
+
+The backend exposes the following endpoints.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health/live` | Checks whether the server is running |
+| `GET` | `/health/ready` | Checks application and database readiness |
+| `POST` | `/api/resumes` | Uploads a PDF and creates a session |
+| `POST` | `/api/chat` | Answers a question using the active resume session |
+| `POST` | `/api/chat/stream` | Streams an answer using Server-Sent Events |
+| `GET` | `/api/sessions/:sessionId` | Retrieves an active session and its conversation history |
+| `DELETE` | `/api/sessions/:sessionId` | Deletes a session and its associated data |
+
+### 1. Upload a resume
+
+**`POST /api/resumes`**
+
+The request uses `multipart/form-data` with a field named `resume`. The accepted file is a PDF, with a maximum size of 5 MB.
+
+```bash
+curl -X POST http://localhost:3000/api/resumes \
+  -F "resume=@resume.pdf"
+```
+
+A successful request returns `201 Created` and session metadata, including the generated session ID, filename, creation time, and expiration time.
+
+### 2. Ask a question
+
+**`POST /api/chat`**
+
+Send the active session ID and question as JSON:
+
+```bash
+curl -X POST http://localhost:3000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "your-session-uuid",
+    "question": "What projects are listed on my resume?"
+  }'
+```
+
+The response contains an `answer` and a `sources` array with relevant resume sections and text.
+
+### 3. Stream an answer
+
+**`POST /api/chat/stream`**
+
+This endpoint streams answer-generation events using Server-Sent Events (SSE). It accepts the same `sessionId` and `question` fields as the regular chat endpoint.
+
+The current frontend uses the regular `/api/chat` endpoint; the streaming endpoint is available in the backend.
+
+### 4. Retrieve a session
+
+**`GET /api/sessions/:sessionId`**
+
+Returns the active session and its stored conversation history.
+
+```bash
+curl http://localhost:3000/api/sessions/your-session-uuid
+```
+
+An expired or unavailable session cannot be restored.
+
+### 5. Delete a session
+
+**`DELETE /api/sessions/:sessionId`**
+
+Deletes the session and its associated resume documents and messages.
+
+```bash
+curl -X DELETE \
+  http://localhost:3000/api/sessions/your-session-uuid
+```
+
+### 6. Health checks
+
+Liveness:
+
+```bash
+curl http://localhost:3000/health/live
+```
+
+Readiness:
+
+```bash
+curl http://localhost:3000/health/ready
+```
+
+The readiness endpoint checks database connectivity. It returns `503 Service Unavailable` when the database is unavailable.
+
+## Installation and local development
+
+### Prerequisites
+
+- Node.js and npm
+- PostgreSQL with pgvector installed
+- Google Gemini API key
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd ai-learning
+```
+
+### 2. Install dependencies
+
+Install backend dependencies:
+
+```bash
+npm install
+```
+
+Install frontend dependencies:
+
+```bash
+npm install --prefix client
+```
+
+### 3. Configure environment variables
+
+Create a `.env` file in the project root:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
+
+PGUSER=your_postgres_username
+PGPASSWORD=your_postgres_password
+PGDATABASE=ai_learning
+PGHOST=localhost
+PGPORT=5432
+
+PORT=3000
+```
+
+| Variable | Description |
+|---|---|
+| `GEMINI_API_KEY` | Google Gemini API key |
+| `PGUSER` | PostgreSQL username |
+| `PGPASSWORD` | PostgreSQL password |
+| `PGDATABASE` | PostgreSQL database name |
+| `PGHOST` | PostgreSQL host |
+| `PGPORT` | PostgreSQL port |
+| `PORT` | Express server port |
+
+The backend loads environment variables using dotenv.
+
+**Never commit `.env` or expose API keys and database credentials.**
+
+### 4. Configure the database
+
+Create the `ai_learning` database, enable pgvector, and ensure the application tables and relationships match the schema described in the Database section.
+
+### 5. Start the backend
 
 ```bash
 npm start
 ```
 
-### 8. Start the frontend
+For development with Node.js watch mode:
+
+```bash
+npm run dev
+```
+
+The backend defaults to port `3000` unless another port is configured.
+
+### 6. Start the frontend
 
 In a separate terminal:
 
@@ -647,169 +525,107 @@ In a separate terminal:
 npm run dev --prefix client
 ```
 
+The Vite development configuration proxies API requests to the backend at `http://localhost:3000`. Keep the backend running while using the frontend.
+
 Open the local URL printed by Vite.
 
-### 9. Ask a resume question
+### 7. Use the application
 
-Use the chat interface or call the API directly:
+1. Upload a PDF resume.
+2. Wait for processing and session creation to finish.
+3. Ask questions about the uploaded resume.
+4. Refresh or reopen the browser to restore the active session.
+5. Use **Replace Resume** to start a new session or **Delete Session** to remove the current session.
 
-```bash
-curl -X POST http://localhost:3000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"question":"What projects are listed on my resume?"}'
-```
+## NPM scripts
 
-## NPM Scripts
-
-The root project defines the following scripts:
+The root project defines these scripts:
 
 | Command | Description |
 |---|---|
 | `npm start` | Starts the Express backend |
 | `npm run dev` | Starts the backend in watch mode |
-| `npm run ingest` | Runs resume ingestion |
-| `npm run query` | Runs the RAG query CLI |
+| `npm run ingest` | Runs the standalone ingestion utility |
+| `npm run query` | Runs the CLI query utility |
 | `npm run evaluate` | Runs retrieval evaluation |
 | `npm run evaluate:relevance` | Runs retrieval relevance evaluation |
 | `npm run test:retrieval` | Runs retrieval testing |
-| `npm test` | Runs automated Jest tests |
+| `npm test` | Runs the Jest test suite |
 
-Frontend scripts are run from the root using the `--prefix client` option:
+Frontend commands:
 
 | Command | Description |
 |---|---|
 | `npm run dev --prefix client` | Starts the Vite development server |
 | `npm run build --prefix client` | Builds the frontend for production |
 
-## CLI Usage
-
-The project also supports command-line experimentation independently of the HTTP API.
-
-### Query
-
-```bash
-npm run query
-```
-
-The query pipeline supports:
-- Asking questions about the resume.
-- Query rewriting.
-- Vector retrieval.
-- Similarity threshold filtering.
-- Answer generation.
-- Short conversation history.
-
-### Ingestion
-
-```bash
-npm run ingest
-```
-
-Runs the resume ingestion pipeline.
-
-### Retrieval evaluation
-
-```bash
-npm run evaluate
-```
-
-Runs the Recall@3 retrieval evaluation.
-
-### Relevance evaluation
-
-```bash
-npm run evaluate:relevance
-```
-
-Runs the relevance evaluation utility.
-
-### Retrieval testing
-
-```bash
-npm run test:retrieval
-```
-
-Runs the retrieval testing script.
+The standalone scripts and experiments are provided as development utilities. The primary application workflow is resume upload and chat through the Express API and React frontend.
 
 ## Testing
 
-Run the automated backend test suite:
+Run the automated test suite:
 
 ```bash
 npm test
 ```
 
-The test suite uses Jest and Supertest to test server behavior and the RAG service.
+The test suite uses Jest and Supertest. It covers server behavior, resume upload validation, resume processing, session management, and RAG service behavior.
 
-## Evaluation
+The current project test run contains five test suites and 59 tests. Run the command above to verify the current checkout rather than relying on a previously recorded result.
 
-The project includes a basic retrieval evaluation pipeline.
+Build the frontend:
 
-The retrieval evaluation uses predefined questions and checks whether relevant resume content appears in the top three retrieved chunks.
+```bash
+npm run build --prefix client
+```
 
-### Recall@3
+## Retrieval evaluation
 
-Recall@3 measures whether relevant information is retrieved within the first three results.
+The project includes utilities for evaluating retrieval behavior using predefined resume questions.
 
-The evaluation includes questions related to resume information, such as:
-- Competitive programming ratings.
-- Technical skills.
-- Project experience.
+Recall@3 checks whether relevant resume content appears among the top three retrieved chunks. The evaluation dataset is small and should be treated as a development aid, not a comprehensive benchmark of answer quality or production reliability.
 
-The evaluation is intended to measure retrieval behavior. It does not fully evaluate:
+The evaluation does not fully measure:
 - Answer correctness.
 - Hallucination rate.
 - Answer completeness.
 - Response quality.
 - Production reliability.
 
-The evaluation dataset is small, so its results should not be treated as a comprehensive benchmark.
+## Current limitations
 
-## Current Limitations
-
-This project is primarily a learning implementation.
+### Security and sessions
+- No user authentication or authorization.
+- Session IDs are not a replacement for authenticated user ownership.
+- Rate limiting is basic and may require tuning for a public deployment.
+- Session expiry is fixed at 24 hours.
 
 ### RAG
 - Retrieval quality depends on chunking and embedding quality.
 - The similarity threshold is manually configured.
-- Query rewriting may not always improve retrieval.
-- The evaluation dataset is small.
-- Answer quality is not comprehensively evaluated.
+- The retrieval evaluation dataset is small.
+- Answer correctness and hallucination rates are not comprehensively evaluated.
 
-### Backend
-- No authentication or authorization.
-- No multi-user support.
-- No persistent conversation history.
-- No streaming responses in the current chat interface.
-- No complete production deployment configuration.
-- Rate limiting is basic and may need further tuning for production.
-- AI timeout handling does not cancel the underlying provider operation.
-- Database timeouts do not cover the complete AI request lifecycle.
+### Backend and frontend
+- The current frontend uses the regular chat endpoint rather than the SSE streaming endpoint.
+- AI timeout handling does not necessarily cancel the underlying provider operation.
+- Database timeouts do not cover the entire AI request lifecycle.
+- Production deployment configuration and operational monitoring require additional work.
 
-### Frontend
-- The frontend currently provides a basic chat experience.
-- Additional accessibility, responsive-design, and user-experience improvements may be needed.
-
-## Future Improvements
-
-Possible future improvements include:
+## Future improvements
 
 - Add authentication and authorization.
-- Support multiple users and resumes.
-- Add persistent conversation history.
-- Improve retrieval evaluation.
-- Evaluate answer correctness and hallucinations.
-- Improve chunking strategies.
-- Experiment with embedding models.
-- Improve rate limiting.
-- Add request tracing.
-- Add streaming responses.
+- Associate sessions with authenticated users.
+- Improve retrieval and answer-quality evaluation.
+- Experiment with chunking strategies and embedding models.
+- Improve rate limiting and request tracing.
+- Integrate streaming responses into the frontend.
 - Improve AI retry and timeout behavior.
 - Expand automated test coverage.
-- Add production deployment configuration.
+- Add production deployment configuration and monitoring.
 - Improve frontend accessibility and user experience.
 
-## Learning Goals
+## Learning goals
 
 This project explores:
 
@@ -821,13 +637,13 @@ This project explores:
 - Express.js backend development.
 - React frontend development.
 - REST API design.
-- Request validation.
-- Error handling.
+- File upload validation.
+- Session management and data isolation.
+- Persistent conversation history.
 - Database connection pooling.
-- AI timeout handling.
-- Graceful shutdown.
+- Error handling and graceful shutdown.
 - Retrieval evaluation.
 
 ## License
 
-This project is for learning and educational purposes.
+No license has been specified yet. Unless a license is added to the repository, all rights remain with the copyright holder.
