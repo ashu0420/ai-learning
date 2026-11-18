@@ -252,26 +252,27 @@ The application uses PostgreSQL and the pgvector extension.
 
 - PostgreSQL
 - The pgvector extension installed for your PostgreSQL version
-- A database and schema matching the application's tables
 - A Gemini API key
 
-Create the database:
+### Database Setup
 
-```sql
-CREATE DATABASE ai_learning;
-```
-
-Connect to it:
+Create the PostgreSQL database:
 
 ```bash
-psql -d ai_learning
+sudo -u postgres createdb ai_learning
 ```
 
-Enable pgvector:
+Apply the initial database schema:
 
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
+```bash
+sudo -u postgres psql -v ON_ERROR_STOP=1 \
+  -d ai_learning \
+  -f migrations/001_initial_schema.sql
 ```
+
+The migration enables pgvector and creates all required tables, constraints, foreign keys, and indexes.
+
+**Note:** This migration is intended for fresh database initialization. It is not an upgrade or repair script for an existing database.
 
 ### Tables
 
@@ -321,8 +322,6 @@ Stores conversation history.
 | `created_at` | Message creation time |
 
 The `documents` and `messages` tables reference `sessions`. Cascading deletion removes the associated records when a session is deleted.
-
-> **Schema setup:** The repository's application code expects these tables and relationships to exist. Ensure the database schema is created or migrated to match the current implementation before starting the application. The commands above create the database and enable pgvector; they do not by themselves create all application tables.
 
 ### Vector similarity search
 

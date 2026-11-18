@@ -1,3 +1,10 @@
 node_modules/
 .env
 mastercv.pdf
+# Environment variables and secrets
+.env.*
+!.env.example
+
+# Private keys and certificates
+*.pem
+*.key
