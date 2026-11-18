@@ -72,23 +72,23 @@ async function getRelevantChunkIndexes(question, chunks) {
 }
 const testCases = [
     {
-        question: "What is Asheesh's maximum Codeforces rating?",
+        question: "What is the candidate's maximum Codeforces rating?",
         expected: "answerable"
     },
     {
-        question: "What projects has Asheesh built?",
+        question: "What projects has the candidate built?",
         expected: "answerable"
     },
     {
-        question: "What is Asheesh's favorite food?",
+        question: "What is the candidate's favorite food?",
         expected: "unanswerable"
     },
     {
-        question: "What is Asheesh's home address?",
+        question: "What is the candidate's home address?",
         expected: "unanswerable"
     },
     {
-        question: "What technologies has Asheesh used in his projects?",
+        question: "What technologies has the candidate used in his projects?",
         expected: "answerable"
     }
 ];

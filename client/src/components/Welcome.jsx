@@ -1,17 +1,19 @@
 const suggestions = [
-    "What projects has Asheesh built?",
-    "What is Asheesh's Codeforces rating?",
-    "What technologies has Asheesh used?",
+    "Summarize my professional experience.",
+    "What technical skills do I have?",
+    "Explain my projects and their technologies.",
+    "What are my key achievements?",
+    "What is my educational background?",
 ];
 
 function Welcome({ onSelect }) {
     return (
         <div className="welcome">
-            <h2>Explore my resume</h2>
+            <h2>Explore your resume</h2>
 
             <p>
-                Ask about my technical skills, projects, achievements, or
-                competitive programming experience.
+                Ask about your technical skills, projects, experience,
+                education, or achievements.
             </p>
 
             <div className="suggestions">

@@ -12,7 +12,7 @@ const toolDefinitions = [{
     functionDeclarations: [
         {
             name: "getProjectDetails",
-            description: "Get technical details about one of Asheesh's projects.",
+            description: "Get technical details about one of the candidate's projects.",
             parameters: {
                 type: "OBJECT",
                 properties: {
@@ -26,7 +26,7 @@ const toolDefinitions = [{
         },
         {
             name: "searchProjects",
-            description: "Find Asheesh's projects that use a specific technology.",
+            description: "Find the candidate's projects that use a specific technology.",
             parameters: {
                 type: "OBJECT",
                 properties: {
@@ -40,7 +40,7 @@ const toolDefinitions = [{
         },
         {
             name: "searchResume",
-            description: "Search Asheesh's resume for relevant information.",
+            description: "Search the candidate's resume for relevant information.",
             parameters: {
                 type: "OBJECT",
                 properties: {
@@ -191,7 +191,7 @@ async function main() {
             role: "user",
             parts: [
                 {
-                    text: "What projects has Asheesh built, and which ones use Next.js ?"
+                    text: "What projects has the candidate built, and which ones use Next.js ?"
                 }
             ]
         }

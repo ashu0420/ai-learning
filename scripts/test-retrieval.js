@@ -4,12 +4,12 @@ const { searchResume } = require("../rag");
 
 async function main() {
     const questions = [
-        "What is Asheesh's Codeforces rating?",
-        "What projects has Asheesh built?",
-        "What programming languages does Asheesh know?",
-        "What is Asheesh's favorite food?",
-        "What is Asheesh's home address?",
-        "What is Asheesh's favorite programming language?"
+        "What is the candidate's Codeforces rating?",
+        "What projects has the candidate built?",
+        "What programming languages does the candidate know?",
+        "What is the candidate's favorite food?",
+        "What is the candidate's home address?",
+        "What is the candidate's favorite programming language?"
     ];
 
     for (const question of questions) {

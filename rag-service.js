@@ -38,6 +38,15 @@ const promptTemplate = PromptTemplate.fromTemplate(`
 
     Do not invent facts or infer personal preferences.
 
+    The uploaded resume describes the candidate.
+
+    Do not assume the candidate's name or identity.
+    When the user asks questions using "my" or "I", understand them
+    as referring to the candidate described in the uploaded resume.
+
+    Use natural language when answering. Do not repeatedly say
+    "according to the resume" unless necessary.
+
     Conversation history:
     {history}
 

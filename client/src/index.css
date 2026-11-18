@@ -29,7 +29,9 @@ input {
 
 button {
   cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
+
 
 #root {
   min-height: 100vh;

@@ -39,7 +39,7 @@ describe("extractResumeText", () => {
 
     test("should extract text from a PDF", async () => {
         mockGetText.mockResolvedValue({
-            text: "Ashish Chauhan\nEngineering Physics\nIIT Guwahati"
+            text: "Candidate Name\nEngineering Physics\nIIT Guwahati"
         });
 
         const result = await extractResumeText(
@@ -47,7 +47,7 @@ describe("extractResumeText", () => {
         );
 
         expect(result).toBe(
-            "Ashish Chauhan\nEngineering Physics\nIIT Guwahati"
+            "Candidate Name\nEngineering Physics\nIIT Guwahati"
         );
 
         expect(PDFParse).toHaveBeenCalledWith({
@@ -86,7 +86,7 @@ describe("extractResumeText", () => {
 describe("splitResumeIntoChunks", () => {
     test("should split resume content based on section headings", () => {
         const resumeText = `
-            Ashish Chauhan
+            Candidate Name
             Engineering Physics
             Education
             IIT Guwahati
@@ -103,7 +103,7 @@ describe("splitResumeIntoChunks", () => {
         expect(result.length).toBe(4);
 
         expect(result[0].section).toBe("General");
-        expect(result[0].text).toContain("Ashish Chauhan");
+        expect(result[0].text).toContain("Candidate Name");
 
         expect(result[1].section).toBe("Education");
         expect(result[1].text).toContain("IIT Guwahati");
@@ -117,7 +117,7 @@ describe("splitResumeIntoChunks", () => {
 
     test("should use General section when no headings are detected", () => {
         const resumeText = `
-            Ashish Chauhan
+            Candidate Name
             Engineering Physics
             IIT Guwahati
             Interested in software development.
@@ -211,7 +211,7 @@ describe("createResumeSession", () => {
 
         PDFParse.mockImplementation(() => ({
             getText: jest.fn().mockResolvedValue({
-                text: "Ashish Chauhan\nEducation\nIIT Guwahati"
+                text: "Candidate Name\nEducation\nIIT Guwahati"
             }),
             destroy: jest.fn().mockResolvedValue(undefined)
         }));

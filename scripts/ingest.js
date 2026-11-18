@@ -53,7 +53,7 @@ async function main() {
         console.log("Chunk:", chunkId);
 
         const textForEmbedding =
-            "Resume of Asheesh Chauhan\n" +
+            "Resume of Candidate\n"  +
             "Section: " + section + "\n\n" +
             chunk;
 

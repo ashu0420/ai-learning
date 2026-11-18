@@ -81,7 +81,7 @@ async function isRelevant(question, chunk) {
 }
 
 async function main() {
-    const question = "What projects has Asheesh built?";    // Step 1: Retrieve candidate chunks.
+    const question = "What projects has the candidate built?";    // Step 1: Retrieve candidate chunks.
     const chunks = await searchResume(question);
 
     console.log("Retrieved chunks:", chunks.length);
@@ -132,13 +132,13 @@ async function main() {
 
 // async function testRelevance() {
 //     const question =
-//         "What is Asheesh's favorite programming language?";
+//         "What is the candidate's favorite programming language?";
 
 //     const testCases = [
 //         {
 //             name: "Explicit evidence",
 //             chunk: `
-//                 Asheesh explicitly states that his favorite
+//                 the candidate explicitly states that his favorite
 //                 programming language is C++.
 // `,
 //             expected: "YES"
@@ -154,7 +154,7 @@ async function main() {
 //         {
 //             name: "Project uses C++",
 //             chunk: `
-//                 Asheesh built a text file compressor in C++
+//                 the candidate built a text file compressor in C++
 // using Huffman coding.
 // `,
 //             expected: "NO"

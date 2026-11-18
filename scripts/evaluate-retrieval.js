@@ -26,15 +26,15 @@ async function getEmbedding(text) {
 
 const testCases = [
     {
-        question: "What is Asheesh's degree?",
+        question: "What is the candidate's degree?",
         expectedSection: "Education"
     },
     {
-        question: "What is Asheesh's Codeforces rating?",
+        question: "What is the candidate's Codeforces rating?",
         expectedSection: "Achievements"
     },
     {
-        question: "What projects has Asheesh built?",
+        question: "What projects has the candidate built?",
         expectedSection: "Projects"
     }
 ];
