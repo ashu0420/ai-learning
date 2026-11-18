@@ -36,6 +36,28 @@ const upload = multer({
     }
 });
 
+function handleResumeUpload(req, res, next) {
+    upload.single("resume")(req, res, (error) => {
+        if (error instanceof multer.MulterError) {
+            if (error.code === "LIMIT_FILE_SIZE") {
+                return res.status(413).json({
+                    error: "Resume must be 5 MB or smaller."
+                });
+            }
+
+            return res.status(400).json({
+                error: "Invalid file upload."
+            });
+        }
+
+        if (error) {
+            return next(error);
+        }
+
+        next();
+    });
+}
+
 function isValidUUID(value) {
     return typeof value === "string" &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -81,7 +103,7 @@ app.get("/health/ready", async (req, res) => {
 
 app.post(
     "/api/resumes",
-    upload.single("resume"),
+    handleResumeUpload,
     async (req, res) => {
         try {
             if (!req.file) {
@@ -110,13 +132,6 @@ app.post(
         } catch (error) {
             console.error("Resume upload error:", error.message);
 
-            if (error instanceof multer.MulterError) {
-                if (error.code === "LIMIT_FILE_SIZE") {
-                    return res.status(413).json({
-                        error: "Resume must be 5 MB or smaller."
-                    });
-                }
-            }
 
             if (error.message.includes("no extractable text")) {
                 return res.status(400).json({
