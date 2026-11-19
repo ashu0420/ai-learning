@@ -1,11 +1,8 @@
 # Resume RAG Assistant
 
-An AI-powered resume assistant built with **Retrieval-Augmented Generation (RAG)**. Upload a PDF resume and ask questions about the candidate's skills, projects, education, experience, and achievements.
+An AI-powered application that lets users upload a PDF resume and ask questions about its skills, projects, education, experience, and achievements using Retrieval-Augmented Generation (RAG).
 
-The application uses **Google Gemini** for embeddings and answer generation, **PostgreSQL with pgvector** for vector storage and similarity search, **Node.js and Express** for the backend, and **React with Vite** for the frontend.
-
-Each uploaded resume creates an independent session. Resume chunks and conversation messages are associated with that session, and sessions automatically expire after **24 hours**.# Resume RAG Assistant
-
+The application combines **Google Gemini, LangChain, PostgreSQL, and pgvector** to retrieve relevant resume information and generate context-aware answers.
 
 **Live Demo:** https://resume-rag-assistant-nine.vercel.app/
 
