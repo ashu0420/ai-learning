@@ -6,9 +6,6 @@ The application uses **Google Gemini** for embeddings and answer generation, **P
 
 Each uploaded resume creates an independent session. Resume chunks and conversation messages are associated with that session, and sessions automatically expire after **24 hours**.# Resume RAG Assistant
 
-An AI-powered application that lets users upload a PDF resume and ask questions about its skills, projects, education, experience, and achievements using Retrieval-Augmented Generation (RAG).
-
-The application combines **Google Gemini, LangChain, PostgreSQL, and pgvector** to retrieve relevant resume information and generate context-aware answers.
 
 **Live Demo:** https://resume-rag-assistant-nine.vercel.app/
 
@@ -228,16 +225,6 @@ ai-learning/
 └── .gitignore
 ```
 
-### Backend Modules
-
-| Module | Responsibility |
-|---|---|
-| `server.js` | Express server, API routes, middleware, and health checks |
-| `db.js` | PostgreSQL connection and connection pooling |
-| `resume-service.js` | PDF text extraction, section identification, and chunking |
-| `rag.js` | Embedding and RAG-related utilities |
-| `rag-service.js` | Vector retrieval and AI answer generation |
-| `session-service.js` | Session lifecycle and conversation history |
 
 ## Core Backend Modules
 
